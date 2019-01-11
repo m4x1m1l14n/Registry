@@ -585,20 +585,13 @@ namespace m4x1m1l14n
 
 					lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, reinterpret_cast<LPBYTE>(data), &cbData);
 
-
 					std::exception_ptr pex;
 
-					// TODO debug this!
 					if (lStatus == ERROR_SUCCESS)
 					{
-						if (data[cbData / sizeof(TCHAR) - 1] == _T('\0'))
-						{
-							value = std::wstring(data);
-						}
-						else
-						{
-							value = std::wstring(data, cbData / sizeof(TCHAR));
-						}
+						assert(data[cbData / sizeof(TCHAR) - 1] == _T('\0'));
+
+						value = std::wstring(data);
 					}
 					else
 					{

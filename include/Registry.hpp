@@ -4,6 +4,7 @@
 
 #include <string>
 #include <memory>
+#include <exception>
 
 #include <assert.h>
 #include <tchar.h>
@@ -13,7 +14,7 @@ namespace m4x1m1l14n
 {
 	namespace Registry
 	{
-		enum class ValueType
+		/*enum class ValueType
 		{
 			NUL,
 			BOOLEAN,
@@ -21,8 +22,37 @@ namespace m4x1m1l14n
 			INT64,
 			STRING,
 			BINARY
+		};*/
+
+		enum class DesiredAccess : REGSAM
+		{
+			Delete = DELETE,
+			ReadControl = READ_CONTROL,
+			WriteDAC = WRITE_DAC,
+			WriteOwner = WRITE_OWNER,
+			AllAccess = KEY_ALL_ACCESS,
+			CreateSubKey = KEY_CREATE_SUB_KEY,
+			EnumerateSubKeys = KEY_ENUMERATE_SUB_KEYS,
+			Execute = KEY_EXECUTE,
+			Notify = KEY_NOTIFY,
+			QueryValue = KEY_QUERY_VALUE,
+			Read = KEY_READ,
+			SetValue = KEY_SET_VALUE,
+			Wow6432 = KEY_WOW64_32KEY,
+			Wow6464 = KEY_WOW64_64KEY,
+			Write = KEY_WRITE
 		};
 
+		DEFINE_ENUM_FLAG_OPERATORS(DesiredAccess);
+
+		enum class CreateKeyOptions : DWORD
+		{
+			BackupRestore = REG_OPTION_BACKUP_RESTORE,
+			NonVolatile = REG_OPTION_NON_VOLATILE,
+			Volatile = REG_OPTION_VOLATILE
+		};
+
+#if 0
 		class RegistryValue
 		{
 		public:
@@ -96,6 +126,7 @@ namespace m4x1m1l14n
 
 			std::shared_ptr<BYTE> GetBinary() const override { return m_value; }
 		};
+#endif
 
 		class RegistryKey;
 
@@ -104,20 +135,19 @@ namespace m4x1m1l14n
 		class RegistryKey
 		{
 		private:
-			RegistryKey()
-				: RegistryKey(nullptr)
-			{
-
-			}
-
-			RegistryKey(const RegistryKey& other) = delete;
-			RegistryKey& operator=(RegistryKey& other) = delete;
+			/// <summary>
+			/// Deleted default constructor
+			/// </summary>
+			RegistryKey() = delete;
 
 		public:
 			RegistryKey(HKEY hKey)
 				: m_hKey(hKey)
 			{
-
+				if (m_hKey == nullptr)
+				{
+					throw std::invalid_argument("Registry key handle cannot be nullptr");
+				}
 			}
 
 			~RegistryKey()
@@ -135,207 +165,520 @@ namespace m4x1m1l14n
 				}
 			}
 
+			// Disable copy ctor & copy assignment operator
+			RegistryKey(const RegistryKey& other) = delete;
+			RegistryKey& operator=(RegistryKey& other) = delete;
+
+			// TODO Implement move logic
+			// RegistryKey(RegistryKey&& other);
+			// RegistryKey& operator=(RegistryKey&& other);
+
 			operator HKEY() const
 			{
 				return m_hKey;
 			}
 
-			RegistryKey_ptr Open(const std::wstring& path, REGSAM samDesired = KEY_READ)
+			/// <summary>
+			///		Member method to open registry key on specified path, with specified access rights
+			/// </summary>
+			/// <param name="path">Relative path to subkey of this registry key</param>
+			/// <param name="access>
+			///		Desired access rights to open specified key.
+			///		Default only read!
+			///	</param>
+			/// <exception></exception>
+			RegistryKey_ptr Open(const std::wstring& path, DesiredAccess access = DesiredAccess::Read)
 			{
+				if (path.empty())
+				{
+					throw std::invalid_argument("Specified path to registry key cannot be empty");
+				}
+
 				HKEY hKey = nullptr;
 
-				LSTATUS lStatus = RegOpenKeyEx(m_hKey, path.c_str(), 0, samDesired, &hKey);
+				DWORD dwOptions = 0;
+
+				LSTATUS lStatus = RegOpenKeyEx(m_hKey, path.c_str(), dwOptions, static_cast<REGSAM>(access), &hKey);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegOpenKeyEx() failed");
+				}
+
+				assert(hKey != nullptr);
+
+				return std::make_shared<RegistryKey>(hKey);
+			}
+
+			/// <summary>
+			///		Creates registry key on specified path
+			/// </summary>
+			/// <param name="path">Relative path to subkey to create</param>
+			RegistryKey_ptr CreateVolatile(const std::wstring& path, DesiredAccess access = DesiredAccess::Read)
+			{
+				return Create(path, access, CreateKeyOptions::Volatile);
+			}
+
+			/// <summary>
+			///		Creates registry key on specified path
+			/// </summary>
+			/// <param name="path">Relative path to subkey to create</param>
+			/// <param name="access">Relative path to subkey to create</param>
+			/// <param name="options">Relative path to subkey to create</param>
+			RegistryKey_ptr Create(const std::wstring& path, DesiredAccess access = DesiredAccess::Read, CreateKeyOptions options = CreateKeyOptions::NonVolatile)
+			{
+				if (path.empty())
+				{
+					throw std::invalid_argument("Specified path to registry key cannot be empty");
+				}
+
+				HKEY hKey = nullptr;
+
+				DWORD dwReserved = 0;
+				LPTSTR lpClass = nullptr;
+
+				LPSECURITY_ATTRIBUTES lpSecurityAttributes = nullptr;
+
+				LSTATUS lStatus =
+					RegCreateKeyEx(
+						m_hKey,
+						path.c_str(),
+						dwReserved,
+						lpClass,
+						static_cast<DWORD>(options),
+						static_cast<REGSAM>(access),
+						lpSecurityAttributes,
+						&hKey,
+						nullptr
+					);
+
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegOpenKeyEx() failed");
+				}
+
+				assert(hKey != nullptr);
+
+				return std::make_shared<RegistryKey>(hKey);
+			}
+
+			void Delete()
+			{
+				LPTSTR lpSubKey = nullptr;
+
+				LSTATUS lStatus = RegDeleteTree(m_hKey, lpSubKey);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegDeleteTree() failed");
+				}
+			}
+
+			void Delete(const std::wstring& name)
+			{
+				LSTATUS lStatus = RegDeleteValue(m_hKey, name.c_str());
+				// In case registry entry with specified name is not registry Value
+				// RegDeleteValue() returns ERROR_FILE_NOT_FOUND, so we will try to
+				// delete registry entry as if it is registry Key
+				if (lStatus == ERROR_FILE_NOT_FOUND)
+				{
+					lStatus = RegDeleteTree(m_hKey, name.c_str());
+				}
+
+				if (lStatus != ERROR_SUCCESS && lStatus != ERROR_FILE_NOT_FOUND)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegDeleteTree() failed");
+				}
+			}
+
+			void Flush()
+			{
+				LSTATUS lStatus = RegFlushKey(m_hKey);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegFlushKey() failed");
+				}
+			}
+
+			void Save(const std::wstring& file)
+			{
+				LPSECURITY_ATTRIBUTES lpSecurityAttributes = nullptr;
+
+				LSTATUS lStatus = RegSaveKey(m_hKey, file.c_str(), lpSecurityAttributes);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegFlushKey() failed");
+				}
+			}
+
+
+
+			/// <summary>
+			///		Checks whether specified subkey exists or not
+			/// </summary>
+			/// <param name="path">Subkey relative path to be checked for existence</param>
+			bool HasKey(const std::wstring& path)
+			{
+				if (path.empty())
+				{
+					throw std::invalid_argument("Specified path to registry key cannot be empty");
+				}
+
+				auto hasKey = false;
+
+				HKEY hKey = nullptr;
+
+				LSTATUS lStatus = RegOpenKeyEx(m_hKey, path.c_str(), 0, KEY_READ, &hKey);
+
 				if (lStatus == ERROR_SUCCESS)
 				{
-					auto registryKey = new RegistryKey(hKey);
-					assert(registryKey != nullptr);
+					assert(hKey != nullptr);
+					RegCloseKey(hKey);
 
-					return RegistryKey_ptr(registryKey);
+					hasKey = true;
 				}
-
-				return RegistryKey_ptr();
-			}
-
-			RegistryKey_ptr Create(const std::wstring& path)
-			{
-				HKEY hKey = nullptr;
-
-				LSTATUS lStatus = RegCreateKeyEx(m_hKey, path.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, nullptr, &hKey, nullptr);
-				if (lStatus == ERROR_SUCCESS) 
+				else if (lStatus != ERROR_FILE_NOT_FOUND)
 				{
-					auto registryKey = new RegistryKey(hKey);
-					assert(registryKey != nullptr);
+					assert(hKey == nullptr);
 
-					return RegistryKey_ptr(registryKey);
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegOpenKeyEx() failed");
 				}
 
-				return RegistryKey_ptr();
+				return hasKey;
 			}
 
-			bool NotifyChange(bool watchSubtree = false, DWORD dwFilter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_ATTRIBUTES)
-			{
-				LSTATUS lStatus = RegNotifyChangeKeyValue(m_hKey, watchSubtree ? TRUE : FALSE, dwFilter, NULL, FALSE);
-
-				return (lStatus == ERROR_SUCCESS);
-			}
-
-			bool NotifyChangeAsync(HANDLE hEvent, bool watchSubtree = false, DWORD dwFilter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_ATTRIBUTES)
-			{
-				auto ret = false;
-
-				if (hEvent != nullptr && hEvent != INVALID_HANDLE_VALUE)
-				{
-					LSTATUS lStatus = RegNotifyChangeKeyValue(m_hKey, watchSubtree ? TRUE : FALSE, dwFilter, hEvent, TRUE);
-
-					ret = (lStatus == ERROR_SUCCESS);
-				}
-
-				return ret;
-			}
-
+			// For backward compatibility only
 			bool Exists(const std::wstring& path)
 			{
-				HKEY hKey = nullptr;
-
-				bool exist = false;
-				LSTATUS lStatus = RegOpenKeyEx(m_hKey, path.c_str(), 0, KEY_READ, &hKey);
-				
-				if (hKey != nullptr) 
-				{ 
-					RegCloseKey(hKey); 
-				}
-
-				return (lStatus == ERROR_SUCCESS);
+				return HasKey(path);
 			}
 
-			bool HasValue(const std::wstring& subKey)
+			bool HasValue(const std::wstring& name)
 			{
-				auto hasValue = false;
-				DWORD dwType = 0;
+				if (name.empty())
+				{
+					throw std::invalid_argument("Value name cannot be empty");
+				}
 
-				LSTATUS lStatus = RegQueryValueEx(m_hKey, subKey.c_str(), nullptr, &dwType, nullptr, nullptr);
+				auto hasValue = false;
+
+				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, nullptr, nullptr);
 				if (lStatus == ERROR_SUCCESS)
 				{
 					hasValue = true;
+				}
+				else if (lStatus != ERROR_FILE_NOT_FOUND)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegQueryValueEx() failed");
 				}
 
 				return hasValue;
 			}
 
-			bool GetBoolean(const std::wstring& name) 
+			bool GetBoolean(const std::wstring& name)
 			{
-				bool ret = false;
 				DWORD dwType = 0;
 				DWORD dwData = 0;
 				DWORD cbData = sizeof(dwData);
 
-				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, &dwType, (LPBYTE)&dwData, &cbData);
-				if (lStatus == ERROR_SUCCESS) 
+				LPDWORD lpReserver = nullptr;
+
+				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), lpReserver, &dwType, reinterpret_cast<LPBYTE>(&dwData), &cbData);
+				if (lStatus != ERROR_SUCCESS)
 				{
-					if (dwType == REG_DWORD) 
-					{
-						ret = (dwData == 0) ? false : true;
-					}
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegQueryValueEx() failed");
 				}
 
-				return ret;
+				if (dwType != REG_DWORD && dwType != REG_QWORD)
+				{
+					throw std::runtime_error("Wrong registry value type " + std::to_string(dwType) + " for boolean value.");
+				}
+
+				return (dwData == 0) ? false : true;
 			}
 
-			bool SetBoolean(const std::wstring& name, bool value) 
+			// Default registry value
+			bool GetBoolean()
+			{
+				return GetBoolean(L"");
+			}
+
+			void SetBoolean(const std::wstring& name, bool value)
 			{
 				DWORD dwValue = value ? 1 : 0;
 				DWORD cbData = sizeof(dwValue);
 
-				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_DWORD, (const BYTE*)&dwValue, cbData);
+				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_DWORD, reinterpret_cast<const LPBYTE>(&dwValue), cbData);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
 
-				return (lStatus == ERROR_SUCCESS);
+					throw std::system_error(ec, "RegSetValueEx() failed");
+				}
 			}
 
-			long GetInt32(const std::wstring& name) 
+			void SetBoolean(bool value)
 			{
-				DWORD dwData = 0;
-				DWORD cbData = sizeof(dwData);
-
-				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, (LPBYTE)&dwData, &cbData);
-
-				return dwData;
+				SetBoolean(L"", value);
 			}
 
-			bool SetInt32(const std::wstring& name, long value) 
+			long GetInt32(const std::wstring& name)
 			{
-				DWORD cbData = sizeof(value);
-
-				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_DWORD, (const BYTE*)&value, cbData);
-
-				return (lStatus == ERROR_SUCCESS);
-			}
-
-			long long GetInt64(const std::wstring& name) 
-			{
-				long long lData = 0;
+				long lData = 0;
 				DWORD cbData = sizeof(lData);
 
-				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, (LPBYTE)&lData, &cbData);
+				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, reinterpret_cast<LPBYTE>(&lData), &cbData);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegQueryValueEx() failed");
+				}
 
 				return lData;
 			}
 
-			bool SetInt64(const std::wstring& name, long long value) 
+			long GetInt32()
+			{
+				return GetInt32(L"");
+			}
+
+			unsigned long GetUInt32(const std::wstring& name)
+			{
+				return static_cast<unsigned long>(GetInt32(name));
+			}
+
+			unsigned long GetUInt32()
+			{
+				return GetUInt32(L"");
+			}
+
+			void SetInt32(const std::wstring& name, long value)
 			{
 				DWORD cbData = sizeof(value);
 
-				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_QWORD, (const BYTE*)&value, cbData);
+				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_DWORD, reinterpret_cast<const LPBYTE>(&value), cbData);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
 
-				return (lStatus == ERROR_SUCCESS);
+					throw std::system_error(ec, "RegSetValueEx() failed");
+				}
+			}
+
+			void SetInt32(long value)
+			{
+				return SetInt32(L"", value);
+			}
+
+			void SetUInt32(const std::wstring& name, unsigned long value)
+			{
+				return SetInt32(name, static_cast<long>(value));
+			}
+
+			void SetUInt32(unsigned long value)
+			{
+				return SetUInt32(L"", value);
+			}
+
+			long long GetInt64(const std::wstring& name) 
+			{
+				long long llData = 0;
+				DWORD cbData = sizeof(llData);
+
+				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, reinterpret_cast<LPBYTE>(&llData), &cbData);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegQueryValueEx() failed");
+				}
+
+				return llData;
+			}
+
+			long long GetInt64()
+			{
+				return GetInt64(L"");
+			}
+
+			unsigned long long GetUInt64(const std::wstring& name)
+			{
+				return static_cast<unsigned long long>(GetInt64(name));
+			}
+
+			unsigned long long GetUInt64()
+			{
+				return static_cast<unsigned long long>(GetUInt64(L""));
+			}
+
+			void SetInt64(const std::wstring& name, long long value)
+			{
+				DWORD cbData = sizeof(value);
+
+				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_QWORD, reinterpret_cast<const LPBYTE>(&value), cbData);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegSetValueEx() failed");
+				}
+			}
+
+			void SetInt64(long long value)
+			{
+				return SetInt64(L"", value);
+			}
+
+			void SetUInt64(const std::wstring& name, unsigned long long value)
+			{
+				SetInt64(name, static_cast<long long>(value));
+			}
+
+			void SetUInt64(unsigned long long value)
+			{
+				SetUInt64(L"", value);
 			}
 
 			std::wstring GetString(const std::wstring& name) 
 			{
 				DWORD cbData = 0;
 				DWORD dwType = 0;
+				
+				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, &dwType, nullptr, &cbData);
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegQueryValueEx() failed");
+				}
+
+				if (dwType != REG_SZ && dwType != REG_EXPAND_SZ) // ???
+				{
+					throw std::runtime_error("Wrong registry value type " + std::to_string(dwType) + " for string value.");
+				}
+
 				std::wstring value;
 
-				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, &dwType, nullptr, &cbData);
-				if (lStatus == ERROR_SUCCESS && (dwType == REG_SZ || dwType == REG_EXPAND_SZ)) 
+				if (cbData)
 				{
-					WCHAR *data = new WCHAR[cbData / 2];
-					if (data != nullptr) 
-					{
-						lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, (LPBYTE)data, &cbData);
-						if (lStatus == ERROR_SUCCESS && cbData > 1)
-						{
-							if (data[cbData / 2 - 1] == L'\0')
-							{
-								value = std::wstring(data);
-							}
-							else
-							{
-								value = std::wstring(data, cbData / 2);
-							}
-						}
+					assert((cbData % sizeof(TCHAR)) != 1);
 
-						delete[] data;
+					auto data = new TCHAR[cbData / sizeof(TCHAR)];
+					assert(data != nullptr);
+
+					lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, reinterpret_cast<LPBYTE>(data), &cbData);
+
+
+					std::exception_ptr pex;
+
+					// TODO debug this!
+					if (lStatus == ERROR_SUCCESS)
+					{
+						if (data[cbData / sizeof(TCHAR) - 1] == _T('\0'))
+						{
+							value = std::wstring(data);
+						}
+						else
+						{
+							value = std::wstring(data, cbData / sizeof(TCHAR));
+						}
+					}
+					else
+					{
+						auto ec = std::error_code(lStatus, std::system_category());
+
+						pex = std::make_exception_ptr(std::system_error(ec, "RegQueryValueEx() failed"));
+					}
+
+					delete[] data;
+
+					if (pex)
+					{
+						std::rethrow_exception(pex);
 					}
 				}
 
 				return value;
 			}
 
-			bool SetString(const std::wstring& name, const std::wstring& value) 
+			std::wstring GetString()
 			{
-				DWORD cbData = DWORD(value.length());
-
-				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_SZ, (const BYTE*)value.c_str(), cbData * sizeof(WCHAR));
-
-				return (lStatus == ERROR_SUCCESS);
+				return GetString(L"");
 			}
 
+			void SetString(const std::wstring& name, const std::wstring& value) 
+			{
+				auto cbData = static_cast<DWORD>(value.length());
+
+				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_SZ, reinterpret_cast<const BYTE*>(value.c_str()), cbData * sizeof(TCHAR));
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegSetValueEx() failed");
+				}
+			}
+
+			void SetString(const std::wstring& value)
+			{
+				SetString(L"", value);
+			}
+
+			/* WiP */
+#if 0
+			bool NotifyChange(bool watchSubtree = false, DWORD dwFilter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_ATTRIBUTES)
+			{
+			LSTATUS lStatus = RegNotifyChangeKeyValue(m_hKey, watchSubtree ? TRUE : FALSE, dwFilter, NULL, FALSE);
+
+			return (lStatus == ERROR_SUCCESS);
+			}
+
+			bool NotifyChangeAsync(HANDLE hEvent, bool watchSubtree = false, DWORD dwFilter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_ATTRIBUTES)
+			{
+			auto ret = false;
+
+			if (hEvent != nullptr && hEvent != INVALID_HANDLE_VALUE)
+			{
+			LSTATUS lStatus = RegNotifyChangeKeyValue(m_hKey, watchSubtree ? TRUE : FALSE, dwFilter, hEvent, TRUE);
+
+			ret = (lStatus == ERROR_SUCCESS);
+			}
+
+			return ret;
+			}
+#endif
+
+#if 0
 			bool SetExpandString(const std::wstring& name, const std::wstring& value)
 			{
-				DWORD cbData = DWORD(value.length());
+				auto cbData = static_cast<DWORD>(value.length());
 
-				LSTATUS lStatus = RegSetValueEx(
-					m_hKey,
+				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_EXPAND_SZ, reinterpret_cast<const BYTE*>(value.c_str()), cbData * sizeof(TCHAR));
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegSetValueEx() failed");
+				}
+
+				LSTATUS lStatus = RegSetValueEx(m_hKey,
 					name.c_str(),
 					0,
 					REG_EXPAND_SZ,
@@ -455,39 +798,20 @@ namespace m4x1m1l14n
 				return ret;
 			}
 
-			bool Delete()
-			{
-				LSTATUS lStatus = RegDeleteTree(m_hKey, NULL);
-
-				return (lStatus == ERROR_SUCCESS);
-			}
-
-			bool Delete(const std::wstring& name)
-			{
-				LSTATUS lStatus = RegDeleteValue(m_hKey, name.c_str());
-				if (lStatus != ERROR_SUCCESS)
-				{
-					lStatus = RegDeleteTree(m_hKey, name.c_str());
-				}
-
-				return (lStatus == ERROR_SUCCESS);
-			}
-
-			bool SetValue(const std::wstring& valueName, const RegistryValue& value) 
+			void SetValue(const std::wstring& valueName, const RegistryValue& value) 
 			{
 				switch (value.GetType())
 				{
-					case Registry::ValueType::BOOLEAN: { return this->SetBoolean(valueName, value.GetBoolean()); }
-					case Registry::ValueType::INT32: { return this->SetInt32(valueName, value.GetInt32()); }
-					case Registry::ValueType::INT64: { return this->SetInt64(valueName, value.GetInt64()); }
-					case Registry::ValueType::STRING: { return this->SetString(valueName, value.GetString()); }
+					case Registry::ValueType::BOOLEAN: { return this->SetBoolean(valueName, value.GetBoolean()); } break;
+					case Registry::ValueType::INT32: { return this->SetInt32(valueName, value.GetInt32()); } break;
+					case Registry::ValueType::INT64: { return this->SetInt64(valueName, value.GetInt64()); } break;
+					case Registry::ValueType::STRING: { return this->SetString(valueName, value.GetString()); } break;
 													  //case Registry::Type::BINARY: { return this->SetBinary(valueName, *value.GetBinary(), ); }
-					default:
-						return false;
-						break;
 				}
 			}
+#endif
 
+#if 0
 			std::vector<std::wstring> GetSubKeys()
 			{
 				std::vector<std::wstring> vecRet;
@@ -511,6 +835,7 @@ namespace m4x1m1l14n
 
 				return vecRet;
 			}
+#endif
 
 		private:
 			HKEY m_hKey;

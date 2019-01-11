@@ -2,3 +2,6 @@ _OUT_/
 *.suo
 *.vcxproj.*
 /Registry.sln
+*.VC.db
+*.VC.opendb
+ipch/*

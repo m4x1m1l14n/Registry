@@ -127,6 +127,26 @@ RegistryKey can be created also from native windows registry key handle HKEY.
 Registry::RegistryKey_ptr key = std::make_shared<Registry::RegistryKey>(hKey);
 ```
 
+## Using with native API
+
+RegistryKey has HKEY() operator overloaded, thus can be used with conjunction with native Windows registry API.
+
+Usage is as follows
+
+```C++
+auto key = Registry::LocalMachine->Open(L"SOFTWARE\\MyCompany\\MyApplication");
+
+DWORD dwValue = 0;
+DWORD cbData = sizeof(dwValue);
+DWORD dwType;
+
+LSTATUS lStatus = RegQueryValueEx(*key, L"SomeDWORDValue", nullptr, &dwType, reinterpret_cast<LPBYTE>(&dwValue), &cbData);
+if (lStatus == ERROR_SUCCESS)
+{
+    // DO SOMETHING
+}
+```
+
 ## Deleting registry key
 
 ## Flush registry

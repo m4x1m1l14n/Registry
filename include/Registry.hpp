@@ -150,6 +150,14 @@ namespace m4x1m1l14n
 				}
 			}
 
+			// Disable copy ctor & copy assignment operator
+			RegistryKey(const RegistryKey& other) = delete;
+			RegistryKey& operator=(RegistryKey& other) = delete;
+
+			// TODO Implement move logic
+			// RegistryKey(RegistryKey&& other);
+			// RegistryKey& operator=(RegistryKey&& other);
+
 			~RegistryKey()
 			{
 				if ((m_hKey != nullptr) && !(
@@ -164,14 +172,6 @@ namespace m4x1m1l14n
 					RegCloseKey(m_hKey);
 				}
 			}
-
-			// Disable copy ctor & copy assignment operator
-			RegistryKey(const RegistryKey& other) = delete;
-			RegistryKey& operator=(RegistryKey& other) = delete;
-
-			// TODO Implement move logic
-			// RegistryKey(RegistryKey&& other);
-			// RegistryKey& operator=(RegistryKey&& other);
 
 			operator HKEY() const
 			{

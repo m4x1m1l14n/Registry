@@ -21,6 +21,7 @@ Wraps & simplifies native Windows API and combines it with power of modern C++11
 * [Read integer value from registry](#read-integer-value-from-registry)
 * [Save string value to registry](#save-string-value-to-registry)
 * [Read string value from registry](#read-string-value-from-registry)
+* [Enumerating registry subkeys](#enumerating-registry-subkeys)
 
 >**NOTE:**  
 > All methods can throw exceptions, if system error occurs!
@@ -402,6 +403,39 @@ int main()
         // work with read value
     }
     catch (const std::exception&)
+    {
+        // handle thrown exception
+    }
+
+    return 0;
+}
+```
+
+## Enumerating registry subkeys
+
+Eumerating registry key subkeys is done as follows, using lambda expression
+
+```C++
+#include <Registry.hpp>
+
+using namespace m4x1m1l14n;
+
+int main()
+{
+    try
+    {
+        auto key = Registry::LocalMachine->Open(L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall");
+
+        key->EnumerateSubKeys([](const std::wstring& name) -> bool
+        {
+            // Process subkey
+            std::wcout << name << std::endl;
+
+            // Return true to continue processing, false otherwise
+            return true;
+        });
+    }
+    catch (const std::exception& ex)
     {
         // handle thrown exception
     }

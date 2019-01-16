@@ -150,6 +150,14 @@ namespace m4x1m1l14n
 				}
 			}
 
+			// Disable copy ctor & copy assignment operator
+			RegistryKey(const RegistryKey& other) = delete;
+			RegistryKey& operator=(RegistryKey& other) = delete;
+
+			// TODO Implement move logic
+			// RegistryKey(RegistryKey&& other);
+			// RegistryKey& operator=(RegistryKey&& other);
+
 			~RegistryKey()
 			{
 				if ((m_hKey != nullptr) && !(
@@ -164,14 +172,6 @@ namespace m4x1m1l14n
 					RegCloseKey(m_hKey);
 				}
 			}
-
-			// Disable copy ctor & copy assignment operator
-			RegistryKey(const RegistryKey& other) = delete;
-			RegistryKey& operator=(RegistryKey& other) = delete;
-
-			// TODO Implement move logic
-			// RegistryKey(RegistryKey&& other);
-			// RegistryKey& operator=(RegistryKey&& other);
 
 			operator HKEY() const
 			{
@@ -632,6 +632,87 @@ namespace m4x1m1l14n
 			void SetString(const std::wstring& value)
 			{
 				SetString(L"", value);
+			}
+
+			template <typename __Function>
+			void EnumerateSubKeys(const __Function& callback)
+			{
+				DWORD dwSubKeys = 0;
+				DWORD dwLongestSubKeyLen = 0;
+				
+				LSTATUS lStatus = RegQueryInfoKey
+				(
+					m_hKey,					// Key handle
+					nullptr,				// Buffer for registry ked class name
+					nullptr,				// Size of class string
+					nullptr,				// Reserved
+					&dwSubKeys,				// Number of key subkeys (this is what we want)
+					&dwLongestSubKeyLen,	// Longest subkey size
+					nullptr,				// Longest class string
+					nullptr,				// number of values for this key
+					nullptr,				// Longest value name
+					nullptr,				// Longest value data
+					nullptr,				// Security descriptor
+					nullptr					// Last key write time
+				);
+
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegQueryInfoKey() failed");
+				}
+
+				// Add space fot terminating null character
+				++dwLongestSubKeyLen;
+
+				std::exception_ptr pex;
+
+				auto pszName = reinterpret_cast<TCHAR*>(LocalAlloc(LMEM_FIXED, dwLongestSubKeyLen * sizeof(TCHAR)));
+				assert(pszName != nullptr);
+
+				for (DWORD i = 0; i < dwSubKeys; ++i)
+				{
+					DWORD dwLen = dwLongestSubKeyLen;
+
+					lStatus = RegEnumKeyEx
+					(
+						m_hKey,			// Key handle
+						i,				// Subkey index
+						pszName,		// Subkey name buffer
+						&dwLen,			// Subkey name string length
+						nullptr,		// Reserved
+						nullptr,		// Subkey class buffer
+						nullptr,		// Subkey class string length
+						nullptr			// Last subkey write time
+					);
+
+					if (lStatus != ERROR_SUCCESS)
+					{
+						auto ec = std::error_code(lStatus, std::system_category());
+
+						pex = std::make_exception_ptr(
+							std::system_error(ec, "RegQueryInfoKey() failed")
+						);
+
+						break;
+					}
+
+					std::wstring subKeyName(pszName, dwLen);
+
+					if (!callback(subKeyName))
+					{
+						// Break loop when callback returns false
+						break;
+					}
+				}
+
+				LocalFree(pszName);
+
+				if (pex)
+				{
+					std::rethrow_exception(pex);
+				}
 			}
 
 			/* WiP */

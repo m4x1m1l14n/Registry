@@ -700,9 +700,19 @@ namespace m4x1m1l14n
 
 					std::wstring subKeyName(pszName, dwLen);
 
-					if (!callback(subKeyName))
+					// Catch possible exception thrown by lambda callback
+					try
 					{
-						// Break loop when callback returns false
+						if (!callback(subKeyName))
+						{
+							// Break loop when callback returns false
+							break;
+						}
+					}
+					catch (const std::exception&)
+					{
+						pex = std::current_exception();
+
 						break;
 					}
 				}

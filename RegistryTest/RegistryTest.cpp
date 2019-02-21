@@ -15,7 +15,7 @@ using namespace m4x1m1l14n;
 			static_cast<void>(expression);				\
 			assert(0);									\
 		}												\
-		catch (const exceptionType e) {						\
+		catch (const exceptionType e) {					\
 			std::cout << e.what();						\
 			std::cout << " OK";							\
 		}												\
@@ -45,14 +45,8 @@ using namespace m4x1m1l14n;
 		std::cout << std::endl;							\
 } while (0)
 
-
-
-
-
 int main()
 {
-	// Constructors
-
 	// New registry key creation from nullptr should throw
 	CHECK_THROWS_AS(Registry::RegistryKey(nullptr), std::invalid_argument&);
 

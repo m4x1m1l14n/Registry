@@ -411,6 +411,35 @@ int main()
 }
 ```
 
+## Save expandable string value to registry
+
+To save string value to registry use SetExpandString() method in same manner as SetString().
+
+
+```C++
+#include <Registry.hpp>
+
+using namespace m4x1m1l14n;
+
+int main()
+{
+    try
+    {
+        auto access = Registry::DesiredAccess::Write;
+
+        auto key = Registry::LocalMachine->Open(L"SOFTWARE\\MyCompany\\MyApplication\\Logger", access);
+		
+        key->SetExpandString(L"InstallDir", L"%ProgramFiles%\\My Company\\My Product\\");
+    }
+    catch (const std::exception&)
+    {
+        // handle thrown exception
+    }
+
+    return 0;
+}
+```
+
 ## Enumerating registry subkeys
 
 Eumerating registry key subkeys is done as follows, using lambda expression

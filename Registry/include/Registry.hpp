@@ -634,6 +634,33 @@ namespace m4x1m1l14n
 				SetString(L"", value);
 			}
 
+			/// <summary>
+			///	Create registry value with specified name of type REG_EXPAND_SZ within this registry key
+			/// </summary>
+			/// <param name="name">Name of registry value (Empty string for default key value)</param>
+			/// <param name="value">Value to be set</param>
+			void SetExpandString(const std::wstring& name, const std::wstring& value)
+			{
+				auto cbData = static_cast<DWORD>(value.length());
+
+				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_EXPAND_SZ, reinterpret_cast<const BYTE*>(value.c_str()), cbData * sizeof(TCHAR));
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegSetValueEx() failed");
+				}
+			}
+
+			/// <summary>
+			///	Create default registry value of type REG_EXPAND_SZ within this registry key
+			/// </summary>
+			/// <param name="value">Value to be set</param>
+			void SetExpandString(const std::wstring& value)
+			{
+				SetExpandString(L"", value);
+			}
+
 			template <typename __Function>
 			void EnumerateSubKeys(const __Function& callback)
 			{
@@ -750,29 +777,6 @@ namespace m4x1m1l14n
 #endif
 
 #if 0
-			bool SetExpandString(const std::wstring& name, const std::wstring& value)
-			{
-				auto cbData = static_cast<DWORD>(value.length());
-
-				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_EXPAND_SZ, reinterpret_cast<const BYTE*>(value.c_str()), cbData * sizeof(TCHAR));
-				if (lStatus != ERROR_SUCCESS)
-				{
-					auto ec = std::error_code(lStatus, std::system_category());
-
-					throw std::system_error(ec, "RegSetValueEx() failed");
-				}
-
-				LSTATUS lStatus = RegSetValueEx(m_hKey,
-					name.c_str(),
-					0,
-					REG_EXPAND_SZ,
-					reinterpret_cast<const BYTE*>(value.c_str()),
-					cbData * sizeof(WCHAR)
-				);
-
-				return (lStatus == ERROR_SUCCESS);
-			}
-
 			std::shared_ptr<BYTE> GetBinary(const std::wstring& name, size_t len) 
 			{
 				DWORD cbData = DWORD(len);

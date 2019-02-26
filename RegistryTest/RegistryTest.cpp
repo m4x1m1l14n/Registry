@@ -76,6 +76,9 @@ int main()
 	{
 		auto subKey = Registry::CurrentUser->Create(L"OUR_TESTING_SUBKEY", Registry::DesiredAccess::AllAccess);
 
+		CHECK_NO_THROW(subKey->SetExpandString(L"%ProgramFiles%\\My Company\\My Product\\Program.exe"));
+		assert(subKey->GetString() == L"%ProgramFiles%\\My Company\\My Product\\Program.exe");
+
 		CHECK_THROWS_AS(subKey->HasValue(L""), std::invalid_argument&);
 		assert(subKey->HasValue(L"VALUE_THAT_DOES_NOT_EXISTS") == false);
 

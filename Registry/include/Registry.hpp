@@ -52,6 +52,17 @@ namespace m4x1m1l14n
 			Volatile = REG_OPTION_VOLATILE
 		};
 
+		enum class NotifyFilter : DWORD
+		{
+			ChangeName = REG_NOTIFY_CHANGE_NAME,
+			ChangeAttributes = REG_NOTIFY_CHANGE_ATTRIBUTES,
+			ChangeLastSet = REG_NOTIFY_CHANGE_LAST_SET,
+			ChangeSecurity = REG_NOTIFY_CHANGE_SECURITY,
+			ThreadAgnostic = REG_NOTIFY_THREAD_AGNOSTIC
+		};
+
+		DEFINE_ENUM_FLAG_OPERATORS(NotifyFilter);
+
 #if 0
 		class RegistryValue
 		{
@@ -752,29 +763,80 @@ namespace m4x1m1l14n
 				}
 			}
 
-			/* WiP */
-#if 0
-			bool NotifyChange(bool watchSubtree = false, DWORD dwFilter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_ATTRIBUTES)
+			/// <summary>
+			///	Notifies the caller about changes to the attributes or contents of a specified registry key.
+			/// </summary>
+			/// <param name="watchSubtree">
+			///	If this parameter is true, the function reports changes in the specified key and its subkeys.
+			///	Otherwise, the function reports changes only in the specified key.
+			/// Default is false.
+			/// </param>
+			/// <param name="notifyFilter">
+			///	A value that indicates the changes that should be reported.
+			/// Default is ChangeName and ChangeAttributes.
+			/// </param>
+			void Notify(bool watchSubtree = false, NotifyFilter notifyFilter = NotifyFilter::ChangeName | NotifyFilter::ChangeAttributes)
 			{
-			LSTATUS lStatus = RegNotifyChangeKeyValue(m_hKey, watchSubtree ? TRUE : FALSE, dwFilter, NULL, FALSE);
+				HANDLE hEvent = nullptr;
+				BOOL fAsynchronous = FALSE;
 
-			return (lStatus == ERROR_SUCCESS);
+				LSTATUS lStatus = RegNotifyChangeKeyValue
+				(
+					m_hKey, 
+					watchSubtree ? TRUE : FALSE, 
+					static_cast<DWORD>(notifyFilter), 
+					hEvent, 
+					fAsynchronous
+				);
+
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegNotifyChangeKeyValue() failed");
+				}
 			}
 
-			bool NotifyChangeAsync(HANDLE hEvent, bool watchSubtree = false, DWORD dwFilter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_ATTRIBUTES)
+			/// <summary>
+			///	Notifies the caller about changes to the attributes or contents of a specified registry key asynchonously via provided event object.
+			/// </summary>
+			/// <param name="hEvent">
+			///	A handle to an event. Call to this function returns immediately and changes are reported by signaling this event.
+			/// </param>
+			/// <param name="watchSubtree">
+			///	If this parameter is true, the function reports changes in the specified key and its subkeys.
+			///	Otherwise, the function reports changes only in the specified key.
+			/// Default is false.
+			/// </param>
+			/// <param name="notifyFilter">
+			///	A value that indicates the changes that should be reported.
+			/// Default is ChangeName and ChangeAttributes.
+			/// </param>
+			void NotifyAsync(HANDLE hEvent, bool watchSubtree = false, NotifyFilter notifyFilter = NotifyFilter::ChangeName | NotifyFilter::ChangeAttributes | NotifyFilter::ChangeLastSet)
 			{
-			auto ret = false;
+				if (hEvent == nullptr)
+				{
+					throw std::invalid_argument("Event handle cannot be null");
+				}
 
-			if (hEvent != nullptr && hEvent != INVALID_HANDLE_VALUE)
-			{
-			LSTATUS lStatus = RegNotifyChangeKeyValue(m_hKey, watchSubtree ? TRUE : FALSE, dwFilter, hEvent, TRUE);
+				BOOL fAsynchronous = TRUE;
 
-			ret = (lStatus == ERROR_SUCCESS);
+				LSTATUS lStatus = RegNotifyChangeKeyValue
+				(
+					m_hKey, 
+					watchSubtree ? TRUE : FALSE, 
+					static_cast<DWORD>(notifyFilter), 
+					hEvent, 
+					fAsynchronous
+				);
+
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegNotifyChangeKeyValue() failed");
+				}
 			}
-
-			return ret;
-			}
-#endif
 
 #if 0
 			std::shared_ptr<BYTE> GetBinary(const std::wstring& name, size_t len) 

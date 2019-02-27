@@ -9,6 +9,9 @@
 
 #include "targetver.h"
 
+#include <ppl.h>
+#include <ppltasks.h>
+
 #include <stdio.h>
 #include <tchar.h>
 

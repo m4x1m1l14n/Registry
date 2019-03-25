@@ -3,6 +3,8 @@
 C++ class for manipulating Windows Registry.
 Wraps & simplifies native Windows API and combines it with power of modern C++11.
 
+[![Build status](https://ci.appveyor.com/api/projects/status/3nvam4ye0yhtt5kt?svg=true)](https://ci.appveyor.com/project/m4x1m1l14n/registry)
+
 [//]: # "Source code documentation to whole namespace can be found on [http://www.nanosoft.sk](http://www.nanosoft.sk)"
 
 ## Table of contents

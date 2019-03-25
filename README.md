@@ -1,3 +1,6 @@
+[![Build status](https://ci.appveyor.com/api/projects/status/3nvam4ye0yhtt5kt?svg=true)](https://ci.appveyor.com/project/m4x1m1l14n/registry)
+[![Coverage Status](https://coveralls.io/repos/github/m4x1m1l14n/Registry/badge.svg?branch=master)](https://coveralls.io/github/m4x1m1l14n/Registry?branch=master)
+
 # Registry namespace
 
 C++ class for manipulating Windows Registry.

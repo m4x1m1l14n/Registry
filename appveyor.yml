@@ -1,0 +1,13 @@
+version: 1.0.{build}
+image: Visual Studio 2015
+configuration:
+- Debug
+- Release
+platform:
+- x86
+- x64
+environment:
+  COVERALLS_REPO_TOKEN: 'secure: ocnxlYNr/PjOwPdIMWmoyZ33fAQBnHhe/Vxcp1nPKn3Hb2xJkECtuQGe11J6NW5v'
+build:
+  parallel: true
+  verbosity: normal

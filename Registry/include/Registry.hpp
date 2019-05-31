@@ -600,9 +600,9 @@ namespace m4x1m1l14n
 
 					if (lStatus == ERROR_SUCCESS)
 					{
-						assert(data[cbData / sizeof(TCHAR) - 1] == _T('\0'));
+						//assert(data[cbData / sizeof(TCHAR) - 1] == _T('\0'));
 
-						value = std::wstring(data);
+						value = std::wstring(data, cbData / sizeof(TCHAR));
 					}
 					else
 					{

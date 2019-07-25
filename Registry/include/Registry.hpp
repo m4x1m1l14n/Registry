@@ -571,13 +571,15 @@ namespace m4x1m1l14n
 			{
 				DWORD cbData = 0;
 				DWORD dwType = 0;
+
+				DWORD dwFlags = RRF_RT_REG_EXPAND_SZ | RRF_RT_REG_SZ;
 				
-				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, &dwType, nullptr, &cbData);
+				LSTATUS lStatus = RegGetValue(m_hKey, nullptr, name.c_str(), dwFlags, &dwType, nullptr, &cbData);
 				if (lStatus != ERROR_SUCCESS)
 				{
 					auto ec = std::error_code(lStatus, std::system_category());
 
-					throw std::system_error(ec, "RegQueryValueEx() failed");
+					throw std::system_error(ec, "RegGetValue() failed");
 				}
 
 				if (dwType != REG_SZ && dwType != REG_EXPAND_SZ) // ???
@@ -594,7 +596,7 @@ namespace m4x1m1l14n
 					auto data = new TCHAR[cbData / sizeof(TCHAR)];
 					assert(data != nullptr);
 
-					lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, reinterpret_cast<LPBYTE>(data), &cbData);
+					lStatus = RegGetValue(m_hKey, nullptr, name.c_str(), dwFlags, &dwType, reinterpret_cast<LPBYTE>(data), &cbData);
 
 					std::exception_ptr pex;
 
@@ -602,13 +604,13 @@ namespace m4x1m1l14n
 					{
 						//assert(data[cbData / sizeof(TCHAR) - 1] == _T('\0'));
 
-						value = std::wstring(data, cbData / sizeof(TCHAR));
+						value = std::wstring(data);
 					}
 					else
 					{
 						auto ec = std::error_code(lStatus, std::system_category());
 
-						pex = std::make_exception_ptr(std::system_error(ec, "RegQueryValueEx() failed"));
+						pex = std::make_exception_ptr(std::system_error(ec, "RegGetValue() failed"));
 					}
 
 					delete[] data;

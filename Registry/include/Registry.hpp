@@ -572,7 +572,7 @@ namespace m4x1m1l14n
 				DWORD cbData = 0;
 				DWORD dwType = 0;
 
-				DWORD dwFlags = RRF_RT_REG_EXPAND_SZ | RRF_RT_REG_SZ;
+				DWORD dwFlags = RRF_RT_REG_EXPAND_SZ | RRF_NOEXPAND | RRF_RT_REG_SZ;
 				
 				LSTATUS lStatus = RegGetValue(m_hKey, nullptr, name.c_str(), dwFlags, &dwType, nullptr, &cbData);
 				if (lStatus != ERROR_SUCCESS)

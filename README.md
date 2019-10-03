@@ -1,6 +1,9 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/3nvam4ye0yhtt5kt?svg=true)](https://ci.appveyor.com/project/m4x1m1l14n/registry)
 [![Coverage Status](https://coveralls.io/repos/github/m4x1m1l14n/Registry/badge.svg?branch=master)](https://coveralls.io/github/m4x1m1l14n/Registry?branch=master)
 
+Saved a little time of your life? :beer::sunglasses::thumbsup: 
+[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=WZ5UGW93SUEA8&currency_code=EUR&amount=5&source=url)
+
 # Registry namespace
 
 C++ class for manipulating Windows Registry.

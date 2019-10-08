@@ -52,6 +52,17 @@ namespace m4x1m1l14n
 			Volatile = REG_OPTION_VOLATILE
 		};
 
+		enum class NotifyFilter : DWORD
+		{
+			ChangeName = REG_NOTIFY_CHANGE_NAME,
+			ChangeAttributes = REG_NOTIFY_CHANGE_ATTRIBUTES,
+			ChangeLastSet = REG_NOTIFY_CHANGE_LAST_SET,
+			ChangeSecurity = REG_NOTIFY_CHANGE_SECURITY,
+			ThreadAgnostic = REG_NOTIFY_THREAD_AGNOSTIC
+		};
+
+		DEFINE_ENUM_FLAG_OPERATORS(NotifyFilter);
+
 #if 0
 		class RegistryValue
 		{
@@ -560,13 +571,15 @@ namespace m4x1m1l14n
 			{
 				DWORD cbData = 0;
 				DWORD dwType = 0;
+
+				DWORD dwFlags = RRF_RT_REG_EXPAND_SZ | RRF_NOEXPAND | RRF_RT_REG_SZ;
 				
-				LSTATUS lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, &dwType, nullptr, &cbData);
+				LSTATUS lStatus = RegGetValue(m_hKey, nullptr, name.c_str(), dwFlags, &dwType, nullptr, &cbData);
 				if (lStatus != ERROR_SUCCESS)
 				{
 					auto ec = std::error_code(lStatus, std::system_category());
 
-					throw std::system_error(ec, "RegQueryValueEx() failed");
+					throw std::system_error(ec, "RegGetValue() failed");
 				}
 
 				if (dwType != REG_SZ && dwType != REG_EXPAND_SZ) // ???
@@ -583,13 +596,13 @@ namespace m4x1m1l14n
 					auto data = new TCHAR[cbData / sizeof(TCHAR)];
 					assert(data != nullptr);
 
-					lStatus = RegQueryValueEx(m_hKey, name.c_str(), nullptr, nullptr, reinterpret_cast<LPBYTE>(data), &cbData);
+					lStatus = RegGetValue(m_hKey, nullptr, name.c_str(), dwFlags, &dwType, reinterpret_cast<LPBYTE>(data), &cbData);
 
 					std::exception_ptr pex;
 
 					if (lStatus == ERROR_SUCCESS)
 					{
-						assert(data[cbData / sizeof(TCHAR) - 1] == _T('\0'));
+						//assert(data[cbData / sizeof(TCHAR) - 1] == _T('\0'));
 
 						value = std::wstring(data);
 					}
@@ -597,7 +610,7 @@ namespace m4x1m1l14n
 					{
 						auto ec = std::error_code(lStatus, std::system_category());
 
-						pex = std::make_exception_ptr(std::system_error(ec, "RegQueryValueEx() failed"));
+						pex = std::make_exception_ptr(std::system_error(ec, "RegGetValue() failed"));
 					}
 
 					delete[] data;
@@ -632,6 +645,33 @@ namespace m4x1m1l14n
 			void SetString(const std::wstring& value)
 			{
 				SetString(L"", value);
+			}
+
+			/// <summary>
+			///	Create registry value with specified name of type REG_EXPAND_SZ within this registry key
+			/// </summary>
+			/// <param name="name">Name of registry value (Empty string for default key value)</param>
+			/// <param name="value">Value to be set</param>
+			void SetExpandString(const std::wstring& name, const std::wstring& value)
+			{
+				auto cbData = static_cast<DWORD>(value.length());
+
+				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_EXPAND_SZ, reinterpret_cast<const BYTE*>(value.c_str()), cbData * sizeof(TCHAR));
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegSetValueEx() failed");
+				}
+			}
+
+			/// <summary>
+			///	Create default registry value of type REG_EXPAND_SZ within this registry key
+			/// </summary>
+			/// <param name="value">Value to be set</param>
+			void SetExpandString(const std::wstring& value)
+			{
+				SetExpandString(L"", value);
 			}
 
 			template <typename __Function>
@@ -700,9 +740,19 @@ namespace m4x1m1l14n
 
 					std::wstring subKeyName(pszName, dwLen);
 
-					if (!callback(subKeyName))
+					// Catch possible exception thrown by lambda callback
+					try
 					{
-						// Break loop when callback returns false
+						if (!callback(subKeyName))
+						{
+							// Break loop when callback returns false
+							break;
+						}
+					}
+					catch (const std::exception&)
+					{
+						pex = std::current_exception();
+
 						break;
 					}
 				}
@@ -715,54 +765,82 @@ namespace m4x1m1l14n
 				}
 			}
 
-			/* WiP */
-#if 0
-			bool NotifyChange(bool watchSubtree = false, DWORD dwFilter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_ATTRIBUTES)
+			/// <summary>
+			///	Notifies the caller about changes to the attributes or contents of a specified registry key.
+			/// </summary>
+			/// <param name="watchSubtree">
+			///	If this parameter is true, the function reports changes in the specified key and its subkeys.
+			///	Otherwise, the function reports changes only in the specified key.
+			/// Default is false.
+			/// </param>
+			/// <param name="notifyFilter">
+			///	A value that indicates the changes that should be reported.
+			/// Default is ChangeName and ChangeAttributes.
+			/// </param>
+			void Notify(bool watchSubtree = false, NotifyFilter notifyFilter = NotifyFilter::ChangeName | NotifyFilter::ChangeAttributes)
 			{
-			LSTATUS lStatus = RegNotifyChangeKeyValue(m_hKey, watchSubtree ? TRUE : FALSE, dwFilter, NULL, FALSE);
+				HANDLE hEvent = nullptr;
+				BOOL fAsynchronous = FALSE;
 
-			return (lStatus == ERROR_SUCCESS);
-			}
+				LSTATUS lStatus = RegNotifyChangeKeyValue
+				(
+					m_hKey, 
+					watchSubtree ? TRUE : FALSE, 
+					static_cast<DWORD>(notifyFilter), 
+					hEvent, 
+					fAsynchronous
+				);
 
-			bool NotifyChangeAsync(HANDLE hEvent, bool watchSubtree = false, DWORD dwFilter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_ATTRIBUTES)
-			{
-			auto ret = false;
-
-			if (hEvent != nullptr && hEvent != INVALID_HANDLE_VALUE)
-			{
-			LSTATUS lStatus = RegNotifyChangeKeyValue(m_hKey, watchSubtree ? TRUE : FALSE, dwFilter, hEvent, TRUE);
-
-			ret = (lStatus == ERROR_SUCCESS);
-			}
-
-			return ret;
-			}
-#endif
-
-#if 0
-			bool SetExpandString(const std::wstring& name, const std::wstring& value)
-			{
-				auto cbData = static_cast<DWORD>(value.length());
-
-				LSTATUS lStatus = RegSetValueEx(m_hKey, name.c_str(), 0, REG_EXPAND_SZ, reinterpret_cast<const BYTE*>(value.c_str()), cbData * sizeof(TCHAR));
 				if (lStatus != ERROR_SUCCESS)
 				{
 					auto ec = std::error_code(lStatus, std::system_category());
 
-					throw std::system_error(ec, "RegSetValueEx() failed");
+					throw std::system_error(ec, "RegNotifyChangeKeyValue() failed");
 				}
-
-				LSTATUS lStatus = RegSetValueEx(m_hKey,
-					name.c_str(),
-					0,
-					REG_EXPAND_SZ,
-					reinterpret_cast<const BYTE*>(value.c_str()),
-					cbData * sizeof(WCHAR)
-				);
-
-				return (lStatus == ERROR_SUCCESS);
 			}
 
+			/// <summary>
+			///	Notifies the caller about changes to the attributes or contents of a specified registry key asynchonously via provided event object.
+			/// </summary>
+			/// <param name="hEvent">
+			///	A handle to an event. Call to this function returns immediately and changes are reported by signaling this event.
+			/// </param>
+			/// <param name="watchSubtree">
+			///	If this parameter is true, the function reports changes in the specified key and its subkeys.
+			///	Otherwise, the function reports changes only in the specified key.
+			/// Default is false.
+			/// </param>
+			/// <param name="notifyFilter">
+			///	A value that indicates the changes that should be reported.
+			/// Default is ChangeName and ChangeAttributes.
+			/// </param>
+			void NotifyAsync(HANDLE hEvent, bool watchSubtree = false, NotifyFilter notifyFilter = NotifyFilter::ChangeName | NotifyFilter::ChangeAttributes | NotifyFilter::ChangeLastSet)
+			{
+				if (hEvent == nullptr)
+				{
+					throw std::invalid_argument("Event handle cannot be null");
+				}
+
+				BOOL fAsynchronous = TRUE;
+
+				LSTATUS lStatus = RegNotifyChangeKeyValue
+				(
+					m_hKey, 
+					watchSubtree ? TRUE : FALSE, 
+					static_cast<DWORD>(notifyFilter), 
+					hEvent, 
+					fAsynchronous
+				);
+
+				if (lStatus != ERROR_SUCCESS)
+				{
+					auto ec = std::error_code(lStatus, std::system_category());
+
+					throw std::system_error(ec, "RegNotifyChangeKeyValue() failed");
+				}
+			}
+
+#if 0
 			std::shared_ptr<BYTE> GetBinary(const std::wstring& name, size_t len) 
 			{
 				DWORD cbData = DWORD(len);

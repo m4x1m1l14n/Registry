@@ -1,5 +1,5 @@
 // stdafx.cpp : source file that includes just the standard includes
-// Registry.pch will be the pre-compiled header
+// RegistryTest.pch will be the pre-compiled header
 // stdafx.obj will contain the pre-compiled type information
 
 #include "stdafx.h"

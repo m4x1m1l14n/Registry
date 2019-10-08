@@ -1,8 +1,6 @@
-_OUT_/
+/ipch/*
+/bin/*
+/obj/*
 *.suo
 *.vcxproj.*
-/Registry.sln
-*.VC.db
-*.VC.opendb
-ipch/*
-*.tmp
+*.VC.*

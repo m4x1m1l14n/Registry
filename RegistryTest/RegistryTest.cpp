@@ -15,7 +15,7 @@ using namespace m4x1m1l14n;
 			static_cast<void>(expression);				\
 			assert(0);									\
 		}												\
-		catch (const exceptionType e) {						\
+		catch (const exceptionType e) {					\
 			std::cout << e.what();						\
 			std::cout << " OK";							\
 		}												\
@@ -45,13 +45,26 @@ using namespace m4x1m1l14n;
 		std::cout << std::endl;							\
 } while (0)
 
+std::wstring gen_random(const int len)
+{
+	static const wchar_t alphanum[] =
+		L"0123456789"
+		L"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		L"abcdefghijklmnopqrstuvwxyz";
 
+	std::wstring s;
 
+	for (int i = 0; i < len; ++i) 
+	{
+		s += alphanum[rand() % (ARRAYSIZE(alphanum) - 1)];
+	}
 
+	return s;
+}
 
 int main()
 {
-	// Constructors
+	srand(static_cast<unsigned int>(time(nullptr)));
 
 	// New registry key creation from nullptr should throw
 	CHECK_THROWS_AS(Registry::RegistryKey(nullptr), std::invalid_argument&);
@@ -80,7 +93,42 @@ int main()
 	}
 
 	{
-		auto subKey = Registry::CurrentUser->Create(L"OUR_TESTING_SUBKEY", Registry::DesiredAccess::AllAccess);
+		auto desiredAccess = Registry::DesiredAccess::AllAccess | Registry::DesiredAccess::Notify;
+		auto subKey = Registry::CurrentUser->Create(L"OUR_TESTING_SUBKEY", desiredAccess);
+
+		CHECK_NO_THROW(subKey->SetExpandString(L"%ProgramFiles%\\My Company\\My Product\\Program.exe"));
+		assert(subKey->GetString() == L"%ProgramFiles%\\My Company\\My Product\\Program.exe");
+
+		{
+			auto task = concurrency::create_task([subKey]() -> std::wstring
+			{
+				std::wstring result;
+
+				auto hChangeEvent = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
+				assert(hChangeEvent != nullptr);
+
+				CHECK_NO_THROW(subKey->NotifyAsync(hChangeEvent));
+
+				DWORD dwWaitResult = ::WaitForSingleObject(hChangeEvent, INFINITE);
+				if (dwWaitResult == WAIT_OBJECT_0)
+				{
+					result = subKey->GetString(L"INVOKE_NOTIFY");
+				}
+
+				::CloseHandle(hChangeEvent);
+
+				return result;
+			});
+
+			::Sleep(1000);
+
+			const auto& val = gen_random(32);
+
+			CHECK_NO_THROW(subKey->SetString(L"INVOKE_NOTIFY", val));
+			
+			assert(task.get() == val);
+			CHECK_NO_THROW(subKey->Delete(L"INVOKE_NOTIFY"));
+		}
 
 		CHECK_THROWS_AS(subKey->HasValue(L""), std::invalid_argument&);
 		assert(subKey->HasValue(L"VALUE_THAT_DOES_NOT_EXISTS") == false);

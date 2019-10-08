@@ -1,6 +1,9 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/3nvam4ye0yhtt5kt?svg=true)](https://ci.appveyor.com/project/m4x1m1l14n/registry)
 [![Coverage Status](https://coveralls.io/repos/github/m4x1m1l14n/Registry/badge.svg?branch=master)](https://coveralls.io/github/m4x1m1l14n/Registry?branch=master)
 
+Saved a little time of your life? :beer::sunglasses::thumbsup: 
+[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=WZ5UGW93SUEA8&currency_code=EUR&amount=5&source=url)
+
 # Registry namespace
 
 C++ class for manipulating Windows Registry.
@@ -404,6 +407,35 @@ int main()
         auto logFileName = key->GetString(L"FileName");
 
         // work with read value
+    }
+    catch (const std::exception&)
+    {
+        // handle thrown exception
+    }
+
+    return 0;
+}
+```
+
+## Save expandable string value to registry
+
+To save string value to registry use SetExpandString() method in same manner as SetString().
+
+
+```C++
+#include <Registry.hpp>
+
+using namespace m4x1m1l14n;
+
+int main()
+{
+    try
+    {
+        auto access = Registry::DesiredAccess::Write;
+
+        auto key = Registry::LocalMachine->Open(L"SOFTWARE\\MyCompany\\MyApplication\\Logger", access);
+		
+        key->SetExpandString(L"InstallDir", L"%ProgramFiles%\\My Company\\My Product\\");
     }
     catch (const std::exception&)
     {

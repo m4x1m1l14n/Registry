@@ -5,11 +5,14 @@
 
 #pragma once
 
+#pragma comment(lib, "Registry.lib")
+
 #include "targetver.h"
+
+#include <ppl.h>
+#include <ppltasks.h>
 
 #include <stdio.h>
 #include <tchar.h>
 
-
-
-// TODO: reference additional headers your program requires here
+#include <Registry.hpp>

@@ -9,6 +9,8 @@
 #include <assert.h>
 #include <tchar.h>
 #include <vector>
+#include <stdexcept>
+#include <system_error>
 
 namespace m4x1m1l14n
 {
